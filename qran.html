@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>موقع الاستغفار</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            direction: rtl;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        header {
+            background-color: #4caf4f00;
+            color: rgb(92, 41, 41);
+            padding: 15px;
+            text-align: center;
+        }
+        nav {
+            margin: 10px 0;
+        }
+        nav a {
+            margin: 0 15px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        main {
+            padding: 20px;
+        }
+        h2 {
+            color: #4CAF50;
+        }
+        #clock {
+            font-size: 30px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        #location {
+            margin: 10px 0;
+            font-size: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 15px;
+            text-align: right;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .highlight {
+            color: red;
+            font-weight: bold;
+        }
+        .dhikr, .hadith {
+            font-size: 24px;
+            margin: 20px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+
+        </nav>
+    </header>
+    <main>
+        <h2>تَمَّ إنشَاءُ المَوْقِعِ لِعَمَّتي، اللَّهُ يَرْحَمُهَا.</h2>
+        
+        <section id="prayer_times">
+            <h2>توقيت الصلاة</h2>
+            <div id="clock">00:00</div>
+            <div id="location">تحديد الموقع...</div>
+            <table id="prayerTimes">
+                <tr><th>الوقت</th><th>الصلاة</th></tr>
+                <tr><td colspan="2">تحميل الأوقات...</td></tr>
+            </table>
+        </section>
+
+        <section id="hadiths">
+            <h2>الأحاديث</h2>
+            <div id="hadithDisplay" class="hadith">تحميل الأحاديث...</div>
+        </section>
+
+        <section id="dhikr">
+            <h2>الأذكار</h2>
+            <div id="dhikrDisplay" class="dhikr">تحميل الأذكار...</div>
+        </section>
+    </main>
+
+    <script>
+        function formatTime(hours, minutes) {
+            const period = hours >= 12 ? 'م' : 'ص';
+            const formattedHours = hours % 12 || 12;
+            return `${convertToArabic(formattedHours)}:${convertToArabic(String(minutes).padStart(2, '0'))} ${period}`;
+        }
+
+        function convertToArabic(number) {
+            const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+            return number.toString().split('').map(digit => arabicNumerals[digit]).join('');
+        }
+
+        function getPrayerTimes(latitude, longitude) {
+            const apiUrl = `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=2`;
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const prayerTimes = data.data.timings;
+                    const tbody = document.getElementById("prayerTimes");
+                    tbody.innerHTML = `
+                        <tr><td class="${isNextPrayer('Fajr', prayerTimes)}">${formatTime(prayerTimes.Fajr.split(':')[0], prayerTimes.Fajr.split(':')[1])}</td><td>الفجر</td></tr>
+                        <tr><td class="${isNextPrayer('Dhuhr', prayerTimes)}">${formatTime(prayerTimes.Dhuhr.split(':')[0], prayerTimes.Dhuhr.split(':')[1])}</td><td>الظهر</td></tr>
+                        <tr><td class="${isNextPrayer('Asr', prayerTimes)}">${formatTime(prayerTimes.Asr.split(':')[0], prayerTimes.Asr.split(':')[1])}</td><td>العصر</td></tr>
+                        <tr><td class="${isNextPrayer('Maghrib', prayerTimes)}">${formatTime(prayerTimes.Maghrib.split(':')[0], prayerTimes.Maghrib.split(':')[1])}</td><td>المغرب</td></tr>
+                        <tr><td class="${isNextPrayer('Isha', prayerTimes)}">${formatTime(prayerTimes.Isha.split(':')[0], prayerTimes.Isha.split(':')[1])}</td><td>العشاء</td></tr>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error fetching prayer times:', error);
+                });
+        }
+
+        function isNextPrayer(prayer, timings) {
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            const prayerTime = timings[prayer].split(':').reduce((acc, time) => acc * 60 + parseInt(time), 0);
+            return currentTime < prayerTime ? 'highlight' : '';
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            document.getElementById("clock").innerText = formatTime(hours, minutes);
+        }
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    getPrayerTimes(latitude, longitude);
+                    fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=ar`)
+                        .then(response => response.json())
+                        .then(data => {
+                            document.getElementById("location").innerText = data.locality || "موقع غير محدد";
+                        });
+                }, () => {
+                    alert("فشل الحصول على موقعك.");
+                });
+            } else {
+                alert("هذا المتصفح لا يدعم خدمات تحديد الموقع.");
+            }
+        }
+
+        setInterval(updateClock, 60000);
+        updateClock();
+        getLocation();
+
+        const hadiths = [
+            "إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى.",
+            "من لا يُؤثِرُ الناس لا يؤثَر.",
+            "أحب الأعمال إلى الله أدومها وإن قل."
+        ];
+
+        function displayHadith() {
+            const randomIndex = Math.floor(Math.random() * hadiths.length);
+            document.getElementById("hadithDisplay").innerText = hadiths[randomIndex];
+        }
+
+        setInterval(displayHadith, 10000);
+        displayHadith();
+
+        const dhikrMorning = [
+            "أستغفر الله ربي من كل ذنب وأتوب إليه.",
+            "سبحان الله وبحمده، سبحان الله العظيم.",
+            "اللهم صلِّ على محمد."
+        ];
+
+        const dhikrEvening = [
+            "اللهم إني أسألك العافية.",
+            "أعوذ بكلمات الله التامات من شر ما خلق.",
+            "اللهم صلِّ على محمد."
+        ];
+
+        function displayDhikr() {
+            const now = new Date();
+            const hour = now.getHours();
+            let dhikrList;
+
+            if (hour >= 6 && hour < 18) {
+                dhikrList = dhikrMorning;
+            } else {
+                dhikrList = dhikrEvening;
+            }
+
+            const randomIndex = Math.floor(Math.random() * dhikrList.length);
+            document.getElementById("dhikrDisplay").innerText = dhikrList[randomIndex];
+        }
+
+        setInterval(displayDhikr, 30000);
+        displayDhikr();
+    </script>
+</body>
+</html>
